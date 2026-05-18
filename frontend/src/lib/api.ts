@@ -73,7 +73,7 @@ export interface Account {
 }
 
 export type AccountType =
-  | 'LEP' | 'PEA' | 'COMPTE_TITRES' | 'CRYPTO' | 'CHECKING' | 'SAVINGS' | 'OTHER'
+  | 'LEP' | 'PEA' | 'COMPTE_TITRES' | 'CRYPTO' | 'STOCKS' | 'ETF' | 'CHECKING' | 'SAVINGS' | 'OTHER'
 
 export interface AccountRequest {
   name: string
@@ -191,6 +191,18 @@ export const syncApi = {
     ).then(r => r.data),
   retry: (id: number) => api.post<Account[]>(`/sync/${id}/retry`).then(r => r.data),
   delete: (id: number) => api.delete(`/sync/${id}`),
+}
+
+// Prices
+export interface PriceRefreshResponse {
+  refreshed: number
+  requested: number
+  prices: Record<string, number>
+  refreshedAt: string
+}
+
+export const pricesApi = {
+  refreshAll: () => api.post<PriceRefreshResponse>('/prices/refresh').then(r => r.data),
 }
 
 // Auth

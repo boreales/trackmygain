@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Wallet, X, Loader2, Pencil } from 'lucide-react'
-import { useAccounts, useCreateAccount, useDeleteAccount, useUpdateAccount } from '../../hooks/useAccounts'
+import { Plus, Wallet, X, Loader2, Pencil, RefreshCw } from 'lucide-react'
+import { useAccounts, useCreateAccount, useDeleteAccount, useUpdateAccount, useRefreshPrices } from '../../hooks/useAccounts'
 import { GlassCard, GlowBackground, PageHeader } from '../../components/shared'
-import { formatEur, accountTypeLabel } from '../../lib/utils'
+import { formatEur, accountTypeLabel, accountTypeNeedsTicker } from '../../lib/utils'
 import type { Account, AccountType } from '../../lib/api'
 
-const ACCOUNT_TYPES: AccountType[] = ['LEP', 'PEA', 'COMPTE_TITRES', 'CRYPTO', 'CHECKING', 'SAVINGS', 'OTHER']
+const ACCOUNT_TYPES: AccountType[] = ['LEP', 'PEA', 'COMPTE_TITRES', 'CRYPTO', 'STOCKS', 'ETF', 'CHECKING', 'SAVINGS', 'OTHER']
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16']
 
 export function AccountsPage() {
@@ -15,7 +15,9 @@ export function AccountsPage() {
   const createAccount = useCreateAccount()
   const updateAccount = useUpdateAccount()
   const deleteAccount = useDeleteAccount()
+  const refreshPrices = useRefreshPrices()
   const navigate = useNavigate()
+  const hasTrackedAssets = (accounts ?? []).some(a => a.ticker)
   const [showForm, setShowForm] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [form, setForm] = useState({
@@ -73,14 +75,29 @@ export function AccountsPage() {
         surtitle="Portefeuille"
         title="Comptes"
         actions={
-          <motion.button
-            whileTap={{ scale: 0.96 }}
-            onClick={openCreate}
-            className="flex items-center gap-1.5 h-8 px-3 bg-gray-900 text-white rounded-[10px]"
-            style={{ fontSize: 12, fontWeight: 600 }}
-          >
-            <Plus size={14} /> Ajouter
-          </motion.button>
+          <div className="flex items-center gap-2">
+            {hasTrackedAssets && (
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={() => refreshPrices.mutate()}
+                disabled={refreshPrices.isPending}
+                title="Rafraîchir les cours crypto / actions / ETF"
+                className="flex items-center gap-1.5 h-8 px-3 bg-white/70 text-gray-700 rounded-[10px] disabled:opacity-60"
+                style={{ fontSize: 12, fontWeight: 600 }}
+              >
+                <RefreshCw size={13} className={refreshPrices.isPending ? 'animate-spin' : ''} />
+                {refreshPrices.isPending ? 'Mise à jour…' : 'Rafraîchir les cours'}
+              </motion.button>
+            )}
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              onClick={openCreate}
+              className="flex items-center gap-1.5 h-8 px-3 bg-gray-900 text-white rounded-[10px]"
+              style={{ fontSize: 12, fontWeight: 600 }}
+            >
+              <Plus size={14} /> Ajouter
+            </motion.button>
+          </div>
         }
       />
 
@@ -242,11 +259,16 @@ export function AccountsPage() {
                         className="h-8 px-3 w-full rounded-[10px] bg-black/[0.03] text-[13px] border-none outline-none focus:ring-2 focus:ring-gray-900/10"
                       />
                     </Field>
-                    <Field label="Ticker (optionnel)">
+                    <Field label={accountTypeNeedsTicker(form.type) ? 'Ticker (cours suivi)' : 'Ticker (optionnel)'}>
                       <input
                         value={form.ticker}
                         onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
-                        placeholder="BTC, IWDA.AS"
+                        placeholder={
+                          form.type === 'CRYPTO' ? 'BTC, ETH, SOL…' :
+                          form.type === 'ETF' ? 'IWDA.AS, CW8.PA…' :
+                          form.type === 'STOCKS' ? 'AAPL, MC.PA, ASML.AS…' :
+                          'BTC, IWDA.AS'
+                        }
                         maxLength={20}
                         className="h-8 px-3 w-full rounded-[10px] bg-black/[0.03] text-[13px] border-none outline-none focus:ring-2 focus:ring-gray-900/10"
                       />

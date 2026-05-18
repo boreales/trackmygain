@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { accountsApi, type AccountRequest } from '../lib/api'
+import { accountsApi, pricesApi, type AccountRequest } from '../lib/api'
 
 export const ACCOUNTS_KEY = ['accounts'] as const
 
@@ -48,6 +48,17 @@ export function useDeleteAccount() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => accountsApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ACCOUNTS_KEY })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useRefreshPrices() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => pricesApi.refreshAll(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ACCOUNTS_KEY })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
