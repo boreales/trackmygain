@@ -51,11 +51,22 @@ export function accountTypeLabel(type: string): string {
     PEA: 'PEA',
     COMPTE_TITRES: 'Compte-titres',
     CRYPTO: 'Crypto',
+    STOCKS: 'Actions',
+    ETF: 'ETF',
     CHECKING: 'Compte courant',
     SAVINGS: 'Épargne',
     OTHER: 'Autre',
   }
   return labels[type] ?? type
+}
+
+/**
+ * Whether an account type is expected to have a ticker (so we can prompt
+ * the user / track its live price). Crypto, single stocks, and ETFs need
+ * a symbol; brokerage accounts (PEA, Compte-titres) may have one too.
+ */
+export function accountTypeNeedsTicker(type: string): boolean {
+  return type === 'CRYPTO' || type === 'STOCKS' || type === 'ETF'
 }
 
 export function clamp(value: number, min: number, max: number): number {
