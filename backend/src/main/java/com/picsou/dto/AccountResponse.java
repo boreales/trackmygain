@@ -18,9 +18,16 @@ public record AccountResponse(
     boolean isManual,
     String color,
     String ticker,
-    Instant createdAt
+    Instant createdAt,
+    /** EUR variation since the previous price refresh: (last_price - previous_price) * currentBalance.
+     *  Null when the account has no ticker or fewer than 2 refreshes have been recorded yet. */
+    BigDecimal priceTrendEur
 ) {
     public static AccountResponse from(Account a, BigDecimal balanceEur) {
+        BigDecimal trend = null;
+        if (a.getLastPriceEur() != null && a.getPreviousPriceEur() != null && a.getCurrentBalance() != null) {
+            trend = a.getLastPriceEur().subtract(a.getPreviousPriceEur()).multiply(a.getCurrentBalance());
+        }
         return new AccountResponse(
             a.getId(),
             a.getName(),
@@ -33,7 +40,8 @@ public record AccountResponse(
             a.isManual(),
             a.getColor(),
             a.getTicker(),
-            a.getCreatedAt()
+            a.getCreatedAt(),
+            trend
         );
     }
 }

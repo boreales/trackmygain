@@ -10,6 +10,7 @@ import {
   LogOut,
   DollarSign,
   TrendingUp,
+  Calculator,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/accounts', label: 'Comptes', icon: Wallet },
   { to: '/goals', label: 'Objectifs', icon: Target },
+  { to: '/accounting', label: 'Comptabilité', icon: Calculator },
   { to: '/sync', label: 'Synchronisation', icon: RefreshCw },
   { to: '/sync/trade-republic', label: 'Trade Republic', icon: TrendingUp },
 ] as const

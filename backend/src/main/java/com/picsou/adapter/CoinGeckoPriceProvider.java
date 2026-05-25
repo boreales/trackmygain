@@ -44,7 +44,9 @@ public class CoinGeckoPriceProvider implements PriceProviderPort {
         Map.entry("SHIB", "shiba-inu"),
         Map.entry("USDT", "tether"),
         Map.entry("USDC", "usd-coin"),
-        Map.entry("DAI", "dai")
+        Map.entry("DAI", "dai"),
+        Map.entry("KAS", "kaspa"),
+        Map.entry("TAO", "bittensor")
     );
 
     private final WebClient webClient;

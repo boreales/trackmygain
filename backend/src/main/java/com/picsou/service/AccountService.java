@@ -62,7 +62,8 @@ public class AccountService {
 
         // Create initial snapshot if balance is provided
         if (account.getCurrentBalance().compareTo(BigDecimal.ZERO) > 0) {
-            createSnapshot(account, account.getCurrentBalance(), LocalDate.now());
+            BigDecimal eur = priceService.toEur(account.getCurrentBalance(), account.getCurrency(), account.getTicker());
+            createSnapshot(account, account.getCurrentBalance(), eur, LocalDate.now());
         }
 
         return toResponse(account);
@@ -114,6 +115,53 @@ public class AccountService {
         return upsertSnapshot(account, req.balance(), req.date());
     }
 
+    /**
+     * Refresh prices for every tickered account and shift per-account price tracking:
+     *   previousPriceEur ← lastPriceEur
+     *   lastPriceEur     ← freshly fetched price
+     * Trend is then (last − previous) × currentBalance.
+     *
+     * On the very first observation (lastPriceEur was null) we try to bootstrap
+     * previousPriceEur from snapshot history; if no usable snapshot exists,
+     * previousPriceEur stays null so the trend is "unknown" until the next refresh.
+     */
+    @Transactional
+    public int refreshAllPrices() {
+        List<Account> tickered = accountRepository.findByTickerIsNotNull();
+        int updated = 0;
+        for (Account a : tickered) {
+            String t = a.getTicker();
+            if (t == null || t.isBlank()) continue;
+            BigDecimal newPrice = priceService.getPriceEur(t);
+            if (newPrice == null) continue;
+
+            BigDecimal previous;
+            if (a.getLastPriceEur() != null) {
+                previous = a.getLastPriceEur();
+            } else {
+                // Bootstrap from snapshot history: derive a reference unit price from
+                // the most recent snapshot that has both an EUR value and a non-zero
+                // native balance. Falls back to the new price (trend = 0) if no
+                // suitable history exists.
+                // Use the most recent snapshot strictly older than today so the
+                // derived unit price reflects a *previous* refresh, not today's.
+                previous = snapshotRepository
+                    .findFirstByAccountIdAndDateLessThanEqualOrderByDateDesc(a.getId(), LocalDate.now().minusDays(1))
+                    .filter(s -> s.getBalanceEur() != null
+                              && s.getBalance() != null
+                              && s.getBalance().signum() > 0)
+                    .map(s -> s.getBalanceEur().divide(s.getBalance(), 8, java.math.RoundingMode.HALF_UP))
+                    .orElse(null);
+            }
+
+            a.setPreviousPriceEur(previous);
+            a.setLastPriceEur(newPrice);
+            accountRepository.save(a);
+            updated++;
+        }
+        return updated;
+    }
+
     public List<BalanceSnapshot> getHistory(Long accountId, LocalDate from, LocalDate to) {
         getOrThrow(accountId); // validate account exists
         LocalDate effectiveTo = to != null ? to : LocalDate.now();
@@ -124,20 +172,23 @@ public class AccountService {
     // ─── Package-private helpers used by other services ──────────────────────
 
     BalanceSnapshot upsertSnapshot(Account account, BigDecimal balance, LocalDate date) {
+        BigDecimal balanceEur = priceService.toEur(balance, account.getCurrency(), account.getTicker());
         Optional<BalanceSnapshot> existing = snapshotRepository.findByAccountIdAndDate(account.getId(), date);
         if (existing.isPresent()) {
             BalanceSnapshot snap = existing.get();
             snap.setBalance(balance);
+            snap.setBalanceEur(balanceEur);
             return snapshotRepository.save(snap);
         }
-        return createSnapshot(account, balance, date);
+        return createSnapshot(account, balance, balanceEur, date);
     }
 
-    private BalanceSnapshot createSnapshot(Account account, BigDecimal balance, LocalDate date) {
+    private BalanceSnapshot createSnapshot(Account account, BigDecimal balance, BigDecimal balanceEur, LocalDate date) {
         return snapshotRepository.save(BalanceSnapshot.builder()
             .account(account)
             .date(date)
             .balance(balance)
+            .balanceEur(balanceEur)
             .build());
     }
 

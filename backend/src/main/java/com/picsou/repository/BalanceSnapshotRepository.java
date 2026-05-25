@@ -25,9 +25,9 @@ public interface BalanceSnapshotRepository extends JpaRepository<BalanceSnapshot
         """)
     Optional<BalanceSnapshot> findLatestByAccountId(@Param("accountId") Long accountId);
 
-    /** Aggregate daily net worth: sum of all account balances per day */
+    /** Aggregate daily net worth: sum of EUR-valued balances per day. Falls back to raw balance for legacy rows. */
     @Query(value = """
-        SELECT s.date, SUM(s.balance)
+        SELECT s.date, SUM(COALESCE(s.balance_eur, s.balance))
         FROM balance_snapshot s
         WHERE s.date >= :from
         GROUP BY s.date

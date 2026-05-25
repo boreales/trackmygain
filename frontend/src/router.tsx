@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/dashboard/DashboardPage'
 import { AccountsPage } from './pages/accounts/AccountsPage'
 import { AccountDetailPage } from './pages/accounts/AccountDetailPage'
 import { GoalsPage } from './pages/goals/GoalsPage'
+import { AccountingPage } from './pages/accounting/AccountingPage'
 import { SyncPage } from './pages/sync/SyncPage'
 import { TrSyncPage } from './pages/sync/TrSyncPage'
 import { SettingsPage } from './pages/settings/SettingsPage'
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: 'accounts', element: <AccountsPage /> },
       { path: 'accounts/:id', element: <AccountDetailPage /> },
       { path: 'goals', element: <GoalsPage /> },
+      { path: 'accounting', element: <AccountingPage /> },
       { path: 'sync', element: <SyncPage /> },
       { path: 'sync/callback', element: <SyncPage /> },
       { path: 'sync/trade-republic', element: <TrSyncPage /> },

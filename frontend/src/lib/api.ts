@@ -70,6 +70,8 @@ export interface Account {
   color: string
   ticker: string | null
   createdAt: string
+  /** EUR variation between the last two price refreshes; null if untracked / not yet two refreshes. */
+  priceTrendEur: number | null
 }
 
 export type AccountType =
@@ -90,6 +92,7 @@ export interface BalanceSnapshot {
   id: number
   date: string
   balance: number
+  balanceEur: number | null
 }
 
 export interface GoalProgress {
@@ -154,6 +157,38 @@ export const accountsApi = {
     api.get<BalanceSnapshot[]>(`/accounts/${id}/history`, { params: { from, to } }).then(r => r.data),
   addSnapshot: (id: number, balance: number, date: string) =>
     api.post<BalanceSnapshot>(`/accounts/${id}/snapshot`, { balance, date }).then(r => r.data),
+}
+
+// Expenses
+export type ExpenseCategory = 'PERSO' | 'PRO'
+
+export interface Expense {
+  id: number
+  name: string
+  amount: number
+  /** Raw spreadsheet-style formula like "61.51+36.48+44.01"; null when amount was typed as a single number. */
+  amountFormula: string | null
+  date: string         // ISO LocalDate "YYYY-MM-DD"
+  recurring: boolean
+  category: ExpenseCategory
+  createdAt: string
+}
+
+export interface ExpenseRequest {
+  name: string
+  amount: number
+  amountFormula?: string | null
+  date: string
+  recurring: boolean
+  category: ExpenseCategory
+}
+
+export const expensesApi = {
+  list: () => api.get<Expense[]>('/expenses').then(r => r.data),
+  get: (id: number) => api.get<Expense>(`/expenses/${id}`).then(r => r.data),
+  create: (data: ExpenseRequest) => api.post<Expense>('/expenses', data).then(r => r.data),
+  update: (id: number, data: ExpenseRequest) => api.put<Expense>(`/expenses/${id}`, data).then(r => r.data),
+  delete: (id: number) => api.delete(`/expenses/${id}`),
 }
 
 // Goals

@@ -2,6 +2,7 @@ package com.picsou.controller;
 
 import com.picsou.model.Account;
 import com.picsou.repository.AccountRepository;
+import com.picsou.service.AccountService;
 import com.picsou.service.PriceService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,10 +23,12 @@ public class PriceController {
 
     private final PriceService priceService;
     private final AccountRepository accountRepository;
+    private final AccountService accountService;
 
-    public PriceController(PriceService priceService, AccountRepository accountRepository) {
+    public PriceController(PriceService priceService, AccountRepository accountRepository, AccountService accountService) {
         this.priceService = priceService;
         this.accountRepository = accountRepository;
+        this.accountService = accountService;
     }
 
     @GetMapping
@@ -50,6 +53,8 @@ public class PriceController {
             .collect(Collectors.toSet());
 
         Map<String, BigDecimal> prices = priceService.refreshPrices(tickers);
+        // Shift per-account last/previous prices so the trend reflects this refresh.
+        accountService.refreshAllPrices();
         return new RefreshResponse(prices.size(), tickers.size(), prices, Instant.now());
     }
 

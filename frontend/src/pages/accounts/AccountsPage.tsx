@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { Plus, Wallet, X, Loader2, Pencil, RefreshCw } from 'lucide-react'
+import { Plus, Wallet, X, Loader2, Pencil, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { useAccounts, useCreateAccount, useDeleteAccount, useUpdateAccount, useRefreshPrices } from '../../hooks/useAccounts'
 import { GlassCard, GlowBackground, PageHeader } from '../../components/shared'
 import { formatEur, accountTypeLabel, accountTypeNeedsTicker } from '../../lib/utils'
@@ -9,6 +9,27 @@ import type { Account, AccountType } from '../../lib/api'
 
 const ACCOUNT_TYPES: AccountType[] = ['LEP', 'PEA', 'COMPTE_TITRES', 'CRYPTO', 'STOCKS', 'ETF', 'CHECKING', 'SAVINGS', 'OTHER']
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16']
+
+type CategoryKey = 'PRO' | 'ACTIONS' | 'CRYPTO' | 'EPARGNE' | 'AUTRES'
+
+const CATEGORY_META: Record<CategoryKey, { label: string; color: string; gradient: string }> = {
+  PRO:     { label: 'Pro',     color: '#8b5cf6', gradient: 'from-violet-400 to-purple-500' },
+  ACTIONS: { label: 'Actions', color: '#6366f1', gradient: 'from-indigo-400 to-blue-500' },
+  CRYPTO:  { label: 'Crypto',  color: '#f59e0b', gradient: 'from-amber-400 to-orange-500' },
+  EPARGNE: { label: 'Épargne', color: '#10b981', gradient: 'from-emerald-400 to-teal-500' },
+  AUTRES:  { label: 'Autres',  color: '#64748b', gradient: 'from-slate-400 to-slate-500' },
+}
+
+function categorize(account: Account): CategoryKey {
+  const name = account.name.trim().toLowerCase()
+  if (name === 'trésorerie' || name === 'tresorerie' || name === 'compte pro') return 'PRO'
+  switch (account.type) {
+    case 'STOCKS': case 'ETF': case 'PEA': case 'COMPTE_TITRES': return 'ACTIONS'
+    case 'CRYPTO': return 'CRYPTO'
+    case 'LEP': case 'SAVINGS': case 'CHECKING': return 'EPARGNE'
+    default: return 'AUTRES'
+  }
+}
 
 export function AccountsPage() {
   const { data: accounts, isLoading } = useAccounts()
@@ -20,6 +41,13 @@ export function AccountsPage() {
   const hasTrackedAssets = (accounts ?? []).some(a => a.ticker)
   const [showForm, setShowForm] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
+  const [expandedCategory, setExpandedCategory] = useState<CategoryKey | null>(null)
+
+  // Price-only trend since last refresh, served by the backend per account.
+  const trendByAccountId = new Map<number, number>()
+  for (const a of accounts ?? []) {
+    if (a.priceTrendEur != null) trendByAccountId.set(a.id, a.priceTrendEur)
+  }
   const [form, setForm] = useState({
     name: '', type: 'SAVINGS' as AccountType, provider: '',
     currency: 'EUR', currentBalance: '', isManual: true, color: '#6366f1', ticker: '',
@@ -101,89 +129,188 @@ export function AccountsPage() {
         }
       />
 
+      {!isLoading && (accounts ?? []).length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-6"
+        >
+          <GlassCard>
+            <p className="text-gray-400 mb-1" style={{ fontSize: 13, fontWeight: 500 }}>
+              Patrimoine total
+            </p>
+            <p className="text-gray-900" style={{ fontSize: 36, fontWeight: 700, lineHeight: 1.1 }}>
+              {formatEur((accounts ?? []).reduce((s, a) => s + a.currentBalanceEur, 0))}
+            </p>
+          </GlassCard>
+        </motion.div>
+      )}
+
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-36 bg-white/60 rounded-[20px]" />
           ))}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <AnimatePresence>
-            {(accounts ?? []).map((account, i) => (
-              <motion.div
-                key={account.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: i * 0.06, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <GlassCard
-                  onClick={() => navigate(`/accounts/${account.id}`)}
-                  className="cursor-pointer hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] transition-shadow"
+      ) : (accounts ?? []).length === 0 ? (
+        <p className="text-gray-400 py-8 text-center" style={{ fontSize: 13 }}>
+          Aucun compte. Cliquez sur "Ajouter" pour commencer.
+        </p>
+      ) : (() => {
+        const all = accounts ?? []
+        const grouped = all.reduce((acc, a) => {
+          const k = categorize(a)
+          ;(acc[k] ||= []).push(a)
+          return acc
+        }, {} as Record<CategoryKey, Account[]>)
+        const order: CategoryKey[] = ['PRO', 'ACTIONS', 'CRYPTO', 'EPARGNE', 'AUTRES']
+        const visible = order.filter(k => (grouped[k]?.length ?? 0) > 0)
+
+        return (
+          <div className="flex flex-col gap-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6 justify-items-center">
+              <AnimatePresence>
+                {visible.map((key, i) => {
+                  const list = grouped[key]!
+                  const total = list.reduce((s, a) => s + a.currentBalanceEur, 0)
+                  const meta = CATEGORY_META[key]
+                  const isActive = expandedCategory === key
+                  const showTrend = key === 'ACTIONS' || key === 'CRYPTO'
+                  const catTrend = showTrend
+                    ? list.reduce((s, a) => s + (trendByAccountId.get(a.id) ?? 0), 0)
+                    : undefined
+                  return (
+                    <motion.button
+                      key={key}
+                      type="button"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ delay: i * 0.08, type: 'spring', stiffness: 200, damping: 18 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => setExpandedCategory(isActive ? null : key)}
+                      className={`relative aspect-square w-40 sm:w-44 lg:w-48 rounded-full bg-gradient-to-br ${meta.gradient} text-white shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col items-center justify-center px-4 transition-shadow ${isActive ? 'ring-4 ring-white/70 shadow-[0_16px_48px_rgba(0,0,0,0.18)]' : ''}`}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.4 }} className="opacity-90 uppercase">
+                        {meta.label}
+                      </span>
+                      <span className="mt-1.5" style={{ fontSize: 20, fontWeight: 700 }}>
+                        {formatEur(total, { compact: total >= 100000 })}
+                      </span>
+                      <span className="mt-1 opacity-75" style={{ fontSize: 11, fontWeight: 500 }}>
+                        {list.length} compte{list.length > 1 ? 's' : ''}
+                      </span>
+                      {showTrend && (
+                        <span className="mt-1.5">
+                          <TrendBadge trend={catTrend} size={11} />
+                        </span>
+                      )}
+                    </motion.button>
+                  )
+                })}
+              </AnimatePresence>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {expandedCategory && grouped[expandedCategory] && (
+                <motion.div
+                  key={expandedCategory}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="w-9 h-9 rounded-[12px] flex items-center justify-center"
-                        style={{ background: account.color + '20' }}
-                      >
-                        <Wallet size={16} style={{ color: account.color }} />
-                      </div>
-                      <div>
-                        <p className="text-gray-900" style={{ fontSize: 14, fontWeight: 600 }}>
-                          {account.name}
-                        </p>
-                        <p className="text-gray-400" style={{ fontSize: 11, fontWeight: 500 }}>
-                          {accountTypeLabel(account.type)}
-                          {account.provider ? ` · ${account.provider}` : ''}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        onClick={e => { e.stopPropagation(); openEdit(account) }}
-                        className="text-gray-300 hover:text-gray-600 transition-colors p-1"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation()
-                          if (confirm('Supprimer ce compte ?')) deleteAccount.mutate(account.id)
-                        }}
-                        className="text-gray-300 hover:text-red-400 transition-colors p-1"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <h2 className="text-gray-900" style={{ fontSize: 15, fontWeight: 600 }}>
+                      {CATEGORY_META[expandedCategory].label} — détail
+                    </h2>
+                    <button
+                      onClick={() => setExpandedCategory(null)}
+                      className="text-gray-400 hover:text-gray-600 flex items-center gap-1"
+                      style={{ fontSize: 12, fontWeight: 500 }}
+                    >
+                      <X size={14} /> Fermer
+                    </button>
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {grouped[expandedCategory]!.map((account, i) => (
+                      <motion.div
+                        key={account.id}
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ delay: i * 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                      >
+                        <GlassCard
+                          onClick={() => navigate(`/accounts/${account.id}`)}
+                          className="cursor-pointer hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] transition-shadow"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className="w-9 h-9 rounded-[12px] flex items-center justify-center"
+                                style={{ background: account.color + '20' }}
+                              >
+                                <Wallet size={16} style={{ color: account.color }} />
+                              </div>
+                              <div>
+                                <p className="text-gray-900" style={{ fontSize: 14, fontWeight: 600 }}>
+                                  {account.name}
+                                </p>
+                                <p className="text-gray-400" style={{ fontSize: 11, fontWeight: 500 }}>
+                                  {accountTypeLabel(account.type)}
+                                  {account.provider ? ` · ${account.provider}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              <button
+                                onClick={e => { e.stopPropagation(); openEdit(account) }}
+                                className="text-gray-300 hover:text-gray-600 transition-colors p-1"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  if (confirm('Supprimer ce compte ?')) deleteAccount.mutate(account.id)
+                                }}
+                                className="text-gray-300 hover:text-red-400 transition-colors p-1"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
 
-                  <p className="text-gray-900 mt-2" style={{ fontSize: 22, fontWeight: 700 }}>
-                    {formatEur(account.currentBalanceEur)}
-                  </p>
-                  {account.currency !== 'EUR' && (
-                    <p className="text-gray-400" style={{ fontSize: 11, fontWeight: 500 }}>
-                      {account.currentBalance.toFixed(account.currency === 'BTC' ? 8 : 2)} {account.currency}
-                    </p>
-                  )}
-                  {account.lastSyncedAt && (
-                    <p className="text-gray-300 mt-1" style={{ fontSize: 11, fontWeight: 500 }}>
-                      Sync {new Date(account.lastSyncedAt).toLocaleDateString('fr-FR')}
-                    </p>
-                  )}
-                </GlassCard>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-
-          {(accounts ?? []).length === 0 && (
-            <p className="text-gray-400 col-span-3 py-8 text-center" style={{ fontSize: 13 }}>
-              Aucun compte. Cliquez sur "Ajouter" pour commencer.
-            </p>
-          )}
-        </div>
-      )}
+                          <div className="flex items-baseline gap-2 mt-2 flex-wrap">
+                            <p className="text-gray-900" style={{ fontSize: 22, fontWeight: 700 }}>
+                              {formatEur(account.currentBalanceEur)}
+                            </p>
+                            {(expandedCategory === 'ACTIONS' || expandedCategory === 'CRYPTO') && (
+                              <TrendBadge trend={trendByAccountId.get(account.id)} size={12} onLight />
+                            )}
+                          </div>
+                          {account.currency !== 'EUR' && (
+                            <p className="text-gray-400" style={{ fontSize: 11, fontWeight: 500 }}>
+                              {account.currentBalance.toFixed(account.currency === 'BTC' ? 8 : 2)} {account.currency}
+                            </p>
+                          )}
+                          {account.lastSyncedAt && (
+                            <p className="text-gray-300 mt-1" style={{ fontSize: 11, fontWeight: 500 }}>
+                              Sync {new Date(account.lastSyncedAt).toLocaleDateString('fr-FR')}
+                            </p>
+                          )}
+                        </GlassCard>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )
+      })()}
 
       {/* Create / Edit modal */}
       <AnimatePresence>
@@ -325,6 +452,30 @@ export function AccountsPage() {
         )}
       </AnimatePresence>
     </GlowBackground>
+  )
+}
+
+function TrendBadge({ trend, size = 11, onLight = false }: { trend: number | undefined; size?: number; onLight?: boolean }) {
+  if (trend === undefined) return null
+  const epsilon = 0.5 // ignore ~zero
+  if (Math.abs(trend) < epsilon) {
+    const Icon = Minus
+    return (
+      <span className={`inline-flex items-center gap-1 ${onLight ? 'text-gray-400' : 'text-white/70'}`} style={{ fontSize: size, fontWeight: 600 }}>
+        <Icon size={size + 2} /> {formatEur(0)}
+      </span>
+    )
+  }
+  const positive = trend > 0
+  const Icon = positive ? TrendingUp : TrendingDown
+  const colorClass = onLight
+    ? (positive ? 'text-emerald-600' : 'text-red-500')
+    : (positive ? 'text-emerald-100' : 'text-red-100')
+  return (
+    <span className={`inline-flex items-center gap-1 ${colorClass}`} style={{ fontSize: size, fontWeight: 600 }}>
+      <Icon size={size + 2} />
+      {positive ? '+' : ''}{formatEur(trend)}
+    </span>
   )
 }
 

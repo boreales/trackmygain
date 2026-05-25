@@ -26,19 +26,22 @@ public class SchedulerService {
     private final SyncService syncService;
     private final TradeRepublicSyncService trSyncService;
     private final PriceService priceService;
+    private final AccountService accountService;
 
     public SchedulerService(
         AccountRepository accountRepository,
         BalanceSnapshotRepository snapshotRepository,
         SyncService syncService,
         TradeRepublicSyncService trSyncService,
-        PriceService priceService
+        PriceService priceService,
+        AccountService accountService
     ) {
         this.accountRepository = accountRepository;
         this.snapshotRepository = snapshotRepository;
         this.syncService = syncService;
         this.trSyncService = trSyncService;
         this.priceService = priceService;
+        this.accountService = accountService;
     }
 
     /**
@@ -76,6 +79,9 @@ public class SchedulerService {
                     .account(account)
                     .date(today)
                     .balance(account.getCurrentBalance())
+                    .balanceEur(priceService.toEur(
+                        account.getCurrentBalance(), account.getCurrency(), account.getTicker()
+                    ))
                     .build());
             }
         }
@@ -96,6 +102,7 @@ public class SchedulerService {
         if (!tickers.isEmpty()) {
             log.debug("Refreshing prices for tickers: {}", tickers);
             priceService.refreshPrices(tickers);
+            accountService.refreshAllPrices();
         }
     }
 }

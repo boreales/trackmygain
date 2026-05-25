@@ -55,4 +55,12 @@ public class Account extends AuditableEntity {
     /** Ticker symbol for live price lookup, e.g. "BTC", "IWDA.AS" */
     @Column(length = 20)
     private String ticker;
+
+    /** Unit price (EUR) recorded at the most recent price refresh. */
+    @Column(name = "last_price_eur", precision = 20, scale = 8)
+    private BigDecimal lastPriceEur;
+
+    /** Unit price (EUR) recorded at the previous price refresh — used to compute the trend. */
+    @Column(name = "previous_price_eur", precision = 20, scale = 8)
+    private BigDecimal previousPriceEur;
 }

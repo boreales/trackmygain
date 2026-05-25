@@ -36,3 +36,5 @@ frontend/.vite/
 # Docker overrides (may contain local ports, credentials)
 docker-compose.override.yml
 docker-compose.override.*.yml
+
+.claude/

@@ -55,7 +55,7 @@ class GoalServiceTest {
             new com.picsou.dto.AccountResponse(
                 1L, "LEP", AccountType.LEP, null, "EUR",
                 new BigDecimal("5000"), new BigDecimal("5000"),
-                null, true, "#6366f1", null, null
+                null, true, "#6366f1", null, null, null
             )
         );
         when(snapshotRepository.findRecentByAccountId(

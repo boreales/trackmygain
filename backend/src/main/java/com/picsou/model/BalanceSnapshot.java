@@ -32,6 +32,10 @@ public class BalanceSnapshot {
     @Column(nullable = false, precision = 20, scale = 8)
     private BigDecimal balance;
 
+    /** Balance converted to EUR at snapshot time (using price/FX rates valid at that moment). */
+    @Column(name = "balance_eur", precision = 20, scale = 8)
+    private BigDecimal balanceEur;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private java.time.Instant createdAt = java.time.Instant.now();
